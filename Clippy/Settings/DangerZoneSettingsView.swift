@@ -8,7 +8,7 @@ struct DangerZoneSettingsView: View {
     @State private var confirmingReset = false
 
     private var storage: StorageService? {
-        (NSApp.delegate as? AppDelegate)?.storageService
+        AppServices.storage
     }
 
     var body: some View {

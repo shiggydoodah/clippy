@@ -2,14 +2,14 @@ import SwiftUI
 
 /// The Favourites pane: drag to reorder, rename inline, remove.
 /// Talks to the same StorageService the rest of the app uses, reached
-/// through the app delegate (the Settings scene is created by SwiftUI, so
-/// it cannot be constructor-injected like the panel).
+/// through AppServices (the Settings scene is created by SwiftUI, so it
+/// cannot be constructor-injected like the panel).
 struct FavouritesSettingsView: View {
     @State private var favourites: [Item] = []
     @State private var labels: [UUID: String] = [:]
 
     private var storage: StorageService? {
-        (NSApp.delegate as? AppDelegate)?.storageService
+        AppServices.storage
     }
 
     var body: some View {
