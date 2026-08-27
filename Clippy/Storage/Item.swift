@@ -21,6 +21,11 @@ nonisolated struct Item: Identifiable, Codable, Sendable, FetchableRecord, Persi
     var favouriteRank: Int?
     /// User-chosen display name for a favourite; nil falls back to preview.
     var favouriteLabel: String?
+    /// Set when the user deletes a favourite from the History tab. The row
+    /// survives because it is still a favourite — it just drops out of the
+    /// history list. Only ever true for favourites: deleting a non-favourite
+    /// removes the row outright.
+    var isHiddenFromHistory: Bool
 
     /// What list rows display: the favourite's custom label when set,
     /// otherwise the content preview.
@@ -37,5 +42,6 @@ nonisolated struct Item: Identifiable, Codable, Sendable, FetchableRecord, Persi
         static let lastUsedAt = Column(CodingKeys.lastUsedAt)
         static let isFavourite = Column(CodingKeys.isFavourite)
         static let favouriteRank = Column(CodingKeys.favouriteRank)
+        static let isHiddenFromHistory = Column(CodingKeys.isHiddenFromHistory)
     }
 }

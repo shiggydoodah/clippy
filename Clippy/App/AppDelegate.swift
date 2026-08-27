@@ -6,7 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // Held strongly here — nothing else keeps these alive.
     private var statusItemController: StatusItemController?
-    /// Read (not mutated) by the Settings window via NSApp.delegate.
+    /// Also handed to AppServices, which is how the Settings scene reads it.
     private(set) var storageService: StorageService?
     private var clipboardMonitor: ClipboardMonitor?
     private var panelController: PanelController?
@@ -35,6 +35,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // failure loud rather than silently dropping history.
             logger.fault("Storage unavailable, captures will be dropped: \(String(describing: error), privacy: .public)")
         }
+
+        AppServices.register(storage: storageService)
 
         let retention = RetentionEngine(storage: storageService)
         retentionEngine = retention

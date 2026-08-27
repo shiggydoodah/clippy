@@ -25,7 +25,7 @@ Press `⌥Space` anywhere to open the panel, and `⌥Space` or `Esc` to dismiss 
 | `⌘1`–`⌘9` | Copy the item at that position                     |
 | `Tab`     | Switch between History and Favourites              |
 | `⌘F`      | Favourite / unfavourite the selected item          |
-| `⌘⌫`      | Delete the selected item                           |
+| `⌘⌫`      | Delete the selected item (see Favourites)          |
 | `⌘⇧V`     | Open it — links in your browser, files in Finder   |
 | `⌘↑` `⌘↓` | Reorder favourites (Favourites tab only)           |
 | `⌘,`      | Settings                                           |
@@ -39,6 +39,10 @@ Settings (`⌘,`) is where you change the summon shortcut, turn on launch at log
 ## Favourites
 
 Press `⌘F` to keep something for good — favourites are never pruned by your history limits, and you can right-click one to rename it.
+
+A favourite is only ever deleted from the Favourites tab. Pressing `⌘⌫` on one in History takes it out of history and leaves the favourite alone; copying the same thing again brings it back into history. If you then unfavourite it, it's in neither list, so it's gone for good.
+
+Clearing your history from the Danger Zone works the same way: the History list is emptied completely, favourites included, and your favourites stay in Favourites.
 
 ## Privacy
 

@@ -75,6 +75,24 @@ struct RetentionEngineTests {
         #expect(Set(remaining.compactMap(\.textContent)) == ["item 1", "item 3", "item 4"])
     }
 
+    @Test func favouritesRemovedFromHistoryAreStillExemptFromMaxCount() async throws {
+        let storage = try StorageService(mode: .ephemeral(vaultDirectory: nil))
+        for i in 1...4 {
+            _ = try await storage.save(textCapture("item \(i)"), now: Date(timeIntervalSince1970: Double(i) * 1_000))
+        }
+        let oldest = try #require(try await storage.recentItems(limit: 10).last)
+        _ = try await storage.toggleFavourite(id: oldest.id)
+        // Deleted from History but still a favourite — retention must not
+        // finish the job the History tab deliberately left undone.
+        try await storage.removeFromHistory(id: oldest.id)
+
+        let engine = RetentionEngine(storage: storage)
+        await engine.run(reason: "test", policy: .init(maxItems: 2, maxAgeSeconds: 0))
+
+        #expect(try await storage.favouriteItems().map(\.textContent) == ["item 1"])
+        #expect(try await storage.recentItems(limit: 10).compactMap(\.textContent) == ["item 4", "item 3"])
+    }
+
     // MARK: - Rule 2: max age
 
     @Test func maxAgePrunesItemsNotUsedSinceCutoff() async throws {
@@ -115,6 +133,20 @@ struct RetentionEngineTests {
         #expect(try await storage.itemCount() == 1)
     }
 
+    @Test func favouritesRemovedFromHistoryAreStillExemptFromMaxAge() async throws {
+        let storage = try StorageService(mode: .ephemeral(vaultDirectory: nil))
+        let now = Date()
+        _ = try await storage.save(textCapture("ancient favourite"), now: now.addingTimeInterval(-1_000_000))
+        let fav = try #require(try await storage.recentItems(limit: 1).first)
+        _ = try await storage.toggleFavourite(id: fav.id)
+        try await storage.removeFromHistory(id: fav.id)
+
+        let engine = RetentionEngine(storage: storage)
+        await engine.run(reason: "test", policy: .init(maxItems: 0, maxAgeSeconds: 60))
+
+        #expect(try await storage.favouriteItems().map(\.textContent) == ["ancient favourite"])
+    }
+
     // MARK: - Rule 3: orphaned blobs
 
     @Test func orphanedBlobsAreSwept() async throws {
@@ -138,6 +170,24 @@ struct RetentionEngineTests {
         // The live item's blob is untouched.
         let live = try #require(try await storage.recentItems(limit: 1).first)
         #expect(try await storage.blobData(for: live) == Data("live image".utf8))
+    }
+
+    @Test func aFavouriteRemovedFromHistoryKeepsItsBlobThroughTheSweep() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ClipRetention-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let storage = try StorageService(mode: .persistent(directory: directory))
+
+        _ = try await storage.save(imageCapture(Data("hidden favourite".utf8)))
+        let image = try #require(try await storage.recentItems(limit: 1).first)
+        _ = try await storage.toggleFavourite(id: image.id)
+        try await storage.removeFromHistory(id: image.id)
+
+        let engine = RetentionEngine(storage: storage)
+        await engine.run(reason: "test", policy: .init(maxItems: 0, maxAgeSeconds: 0))
+
+        let kept = try #require(try await storage.favouriteItems().first)
+        #expect(try await storage.blobData(for: kept) == Data("hidden favourite".utf8))
     }
 
     @Test func captureTriggeredRunsSkipTheOrphanSweep() async throws {

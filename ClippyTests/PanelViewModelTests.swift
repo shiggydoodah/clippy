@@ -144,6 +144,62 @@ struct PanelViewModelTests {
         #expect(model.selectedIndex == 0)
     }
 
+    @Test func deletingAFavouriteFromHistoryKeepsItInFavourites() async throws {
+        let storage = try StorageService(mode: .ephemeral(vaultDirectory: nil))
+        _ = try await storage.save(textCapture("plain"), now: Date(timeIntervalSince1970: 1_000))
+        _ = try await storage.save(textCapture("starred"), now: Date(timeIntervalSince1970: 2_000))
+        let starred = try #require(try await storage.recentItems(limit: 10).first)
+        _ = try await storage.toggleFavourite(id: starred.id)
+
+        let model = PanelViewModel(storage: storage)
+        await model.load()
+        let fav = try #require(model.selectedItem)
+        #expect(fav.isFavourite)
+
+        model.delete(fav)
+        // Gone from History straight away, still in Favourites.
+        #expect(model.visibleItems.map(\.preview) == ["plain"])
+        #expect(model.favouriteItems.map(\.preview) == ["starred"])
+
+        // …and once storage has caught up, a fresh load agrees.
+        await model.commitDelete(fav, fromHistory: true)
+        await model.load()
+        #expect(model.visibleItems.map(\.preview) == ["plain"])
+        model.switchTab()
+        #expect(model.visibleItems.map(\.preview) == ["starred"])
+    }
+
+    @Test func deletingAFavouriteFromTheFavouritesTabDeletesIt() async throws {
+        let storage = try StorageService(mode: .ephemeral(vaultDirectory: nil))
+        _ = try await storage.save(textCapture("starred"))
+        let starred = try #require(try await storage.recentItems(limit: 10).first)
+        _ = try await storage.toggleFavourite(id: starred.id)
+
+        let model = PanelViewModel(storage: storage)
+        await model.load()
+        model.switchTab()
+        let fav = try #require(model.selectedItem)
+
+        model.delete(fav)
+        #expect(model.visibleItems.isEmpty)
+        #expect(model.favouriteItems.isEmpty)
+
+        await model.commitDelete(fav, fromHistory: false)
+        await model.load()
+        #expect(model.favouriteItems.isEmpty)
+        #expect(model.historyItems.isEmpty)
+    }
+
+    @Test func deletingANonFavouriteFromHistoryRemovesItForGood() async throws {
+        let model = try await makeModel(texts: ["a", "b"])
+        let doomed = try #require(model.selectedItem)
+
+        await model.commitDelete(doomed, fromHistory: true)
+        await model.load()
+
+        #expect(model.visibleItems.map(\.preview) == ["a"])
+    }
+
     // MARK: - Summon reset
 
     @Test func prepareForShowResetsSearchTabSelectionAndBumpsShowCount() async throws {

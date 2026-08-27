@@ -2,14 +2,14 @@ import SwiftUI
 
 /// The Favourites pane: drag to reorder, rename inline, remove.
 /// Talks to the same StorageService the rest of the app uses, reached
-/// through the app delegate (the Settings scene is created by SwiftUI, so
-/// it cannot be constructor-injected like the panel).
+/// through AppServices (the Settings scene is created by SwiftUI, so it
+/// cannot be constructor-injected like the panel).
 struct FavouritesSettingsView: View {
     @State private var favourites: [Item] = []
     @State private var labels: [UUID: String] = [:]
 
     private var storage: StorageService? {
-        (NSApp.delegate as? AppDelegate)?.storageService
+        AppServices.storage
     }
 
     var body: some View {
@@ -41,7 +41,7 @@ struct FavouritesSettingsView: View {
                                 Image(systemName: "star.slash")
                             }
                             .buttonStyle(.borderless)
-                            .help("Remove from favourites (keeps the item in history)")
+                            .help(unfavouriteHelp(for: item))
                         }
                     }
                     .onMove(perform: move)
@@ -51,6 +51,14 @@ struct FavouritesSettingsView: View {
         .padding(16)
         .frame(minHeight: 300)
         .task { await reload() }
+    }
+
+    /// An item the user deleted from history has nowhere to fall back to,
+    /// so unfavouriting it removes it for good — say which one it will be.
+    private func unfavouriteHelp(for item: Item) -> String {
+        item.isHiddenFromHistory
+            ? "Remove from favourites (deletes it — it is no longer in history)"
+            : "Remove from favourites (keeps the item in history)"
     }
 
     private func labelBinding(for item: Item) -> Binding<String> {

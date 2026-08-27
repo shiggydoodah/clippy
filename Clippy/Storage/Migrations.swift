@@ -42,6 +42,15 @@ nonisolated enum Migrations {
             }
         }
 
+        migrator.registerMigration("v3_addHiddenFromHistory") { db in
+            // Deleting a favourite from the History tab hides it from
+            // history instead of deleting the row; existing rows are all
+            // visible, hence the false default.
+            try db.alter(table: "item") { t in
+                t.add(column: "isHiddenFromHistory", .boolean).notNull().defaults(to: false)
+            }
+        }
+
         return migrator
     }
 }

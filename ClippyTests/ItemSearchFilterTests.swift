@@ -24,7 +24,8 @@ struct ItemSearchFilterTests {
             lastUsedAt: Date(),
             isFavourite: favouriteLabel != nil,
             favouriteRank: nil,
-            favouriteLabel: favouriteLabel
+            favouriteLabel: favouriteLabel,
+            isHiddenFromHistory: false
         )
     }
 
