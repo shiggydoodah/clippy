@@ -32,7 +32,9 @@ struct ItemListView: View {
                                 Button("Rename…") { model.requestRename(item) }
                             }
                             Divider()
-                            Button("Delete", role: .destructive) { model.delete(item) }
+                            Button(deleteLabel(for: item), role: .destructive) {
+                                model.delete(item)
+                            }
                         }
                     }
                 }
@@ -49,6 +51,12 @@ struct ItemListView: View {
                 }
             }
         }
+    }
+
+    /// Deleting a favourite from History only drops it out of history — the
+    /// menu says so rather than promising a delete that will not happen.
+    private func deleteLabel(for item: Item) -> String {
+        model.activeTab == .history && item.isFavourite ? "Remove from History" : "Delete"
     }
 
     /// The "animated selection scroll" polish, but only for deliberate

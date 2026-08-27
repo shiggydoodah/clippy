@@ -41,7 +41,7 @@ struct FavouritesSettingsView: View {
                                 Image(systemName: "star.slash")
                             }
                             .buttonStyle(.borderless)
-                            .help("Remove from favourites (keeps the item in history)")
+                            .help(unfavouriteHelp(for: item))
                         }
                     }
                     .onMove(perform: move)
@@ -51,6 +51,14 @@ struct FavouritesSettingsView: View {
         .padding(16)
         .frame(minHeight: 300)
         .task { await reload() }
+    }
+
+    /// An item the user deleted from history has nowhere to fall back to,
+    /// so unfavouriting it removes it for good — say which one it will be.
+    private func unfavouriteHelp(for item: Item) -> String {
+        item.isHiddenFromHistory
+            ? "Remove from favourites (deletes it — it is no longer in history)"
+            : "Remove from favourites (keeps the item in history)"
     }
 
     private func labelBinding(for item: Item) -> Binding<String> {

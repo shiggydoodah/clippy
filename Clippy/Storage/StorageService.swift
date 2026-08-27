@@ -113,10 +113,17 @@ actor StorageService {
         let hash = SHA256.hash(data: payload).map { String(format: "%02x", $0) }.joined()
 
         // Refresh-if-exists first, so a re-copy never rewrites its blob.
+        // Copying the content again is a fresh history event, so it also
+        // undoes a previous "remove from history" — otherwise the user would
+        // copy something and watch it not appear.
         let refreshedCount = try await dbQueue.write { db in
             try Item
                 .filter(Item.Columns.contentHash == hash)
-                .updateAll(db, Item.Columns.lastUsedAt.set(to: now))
+                .updateAll(
+                    db,
+                    Item.Columns.lastUsedAt.set(to: now),
+                    Item.Columns.isHiddenFromHistory.set(to: false)
+                )
         }
         if refreshedCount > 0 {
             // A favourite's vault copy tracks lastUsedAt too, so its
@@ -125,7 +132,11 @@ actor StorageService {
                 _ = try? await vault.dbQueue.write { db in
                     try Item
                         .filter(Item.Columns.contentHash == hash)
-                        .updateAll(db, Item.Columns.lastUsedAt.set(to: now))
+                        .updateAll(
+                            db,
+                            Item.Columns.lastUsedAt.set(to: now),
+                            Item.Columns.isHiddenFromHistory.set(to: false)
+                        )
                 }
             }
             logger.log("Deduplicated \(capture.kind.rawValue, privacy: .public) capture")
@@ -158,7 +169,8 @@ actor StorageService {
             lastUsedAt: now,
             isFavourite: false,
             favouriteRank: nil,
-            favouriteLabel: nil
+            favouriteLabel: nil,
+            isHiddenFromHistory: false
         )
         try await dbQueue.write { db in try item.insert(db) }
         logger.log("Stored \(capture.kind.rawValue, privacy: .public) item, \(capture.byteSize) bytes")
@@ -166,6 +178,25 @@ actor StorageService {
     }
 
     // MARK: - Mutations
+
+    /// The History tab's delete. A favourite only drops out of history —
+    /// the row and its blob stay, because a favourite is removed from the
+    /// Favourites tab and nowhere else. Anything else is a real delete.
+    /// The rule lives here rather than at the call site so no future caller
+    /// can delete a favourite out from under the user by accident.
+    func removeFromHistory(id: UUID) async throws {
+        let hidden = try await dbQueue.write { db -> Item? in
+            guard var item = try Item.fetchOne(db, key: id), item.isFavourite else { return nil }
+            item.isHiddenFromHistory = true
+            try item.update(db)
+            return item
+        }
+        guard let hidden else {
+            try await deleteItem(id: id)
+            return
+        }
+        copyToVault(hidden)
+    }
 
     /// Removes an item and its blob file (if any). The blob delete is
     /// best-effort: a leftover file is invisible to the user and the orphan
@@ -190,7 +221,14 @@ actor StorageService {
     }
 
     /// Flips the favourite flag. A newly favourited item goes to the end of
-    /// the favourites ordering (max rank + 1); unfavouriting clears the rank.
+    /// the favourites ordering (max rank + 1); unfavouriting clears the rank
+    /// and puts the item back in history.
+    ///
+    /// One special case: unfavouriting something the user had already deleted
+    /// from history leaves it in neither list, so the row goes. Restoring it
+    /// to history instead would resurrect content the user deleted.
+    /// The returned item describes the toggle that happened; check
+    /// `isHiddenFromHistory` on it to tell whether the row survived.
     @discardableResult
     func toggleFavourite(id: UUID) async throws -> Item? {
         let toggled = try await dbQueue.write { db -> Item? in
@@ -208,8 +246,17 @@ actor StorageService {
             try item.update(db)
             return item
         }
-        if let toggled {
-            toggled.isFavourite ? copyToVault(toggled) : removeFromVault(toggled)
+        guard let toggled else { return nil }
+        if toggled.isFavourite {
+            copyToVault(toggled)
+        } else if toggled.isHiddenFromHistory {
+            // deleteItem only clears the vault for rows that are still
+            // favourites, and this one no longer is — clear it here, or the
+            // vault would hand it back as a favourite on the next launch.
+            removeFromVault(toggled)
+            try await deleteItem(id: toggled.id)
+        } else {
+            removeFromVault(toggled)
         }
         return toggled
     }
@@ -435,9 +482,15 @@ actor StorageService {
     // MARK: - Queries
 
     /// Most recently used first — the history list's default ordering.
+    /// Favourites the user deleted from history are left out; they live on
+    /// in favouriteItems().
     func recentItems(limit: Int) async throws -> [Item] {
         try await dbQueue.read { db in
-            try Item.order(Item.Columns.lastUsedAt.desc).limit(limit).fetchAll(db)
+            try Item
+                .filter(Item.Columns.isHiddenFromHistory == false)
+                .order(Item.Columns.lastUsedAt.desc)
+                .limit(limit)
+                .fetchAll(db)
         }
     }
 

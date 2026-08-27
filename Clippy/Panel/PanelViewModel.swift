@@ -158,19 +158,36 @@ final class PanelViewModel {
         }
     }
 
+    /// ⌘⌫ and the row context menu. Which list the user is looking at
+    /// decides how far the delete reaches: from History a favourite only
+    /// leaves the history list, because favourites are removed from the
+    /// Favourites tab and nowhere else. From Favourites it is a real delete.
     func delete(_ item: Item) {
-        guard let storage else { return }
+        let fromHistory = activeTab == .history
+        let keepsFavourite = fromHistory && item.isFavourite
         historyItems.removeAll { $0.id == item.id }
-        favouriteItems.removeAll { $0.id == item.id }
+        if !keepsFavourite {
+            favouriteItems.removeAll { $0.id == item.id }
+        }
         refreshVisibleItems()
         clampSelection()
-        Task {
-            do {
+        Task { await commitDelete(item, fromHistory: fromHistory) }
+    }
+
+    /// The storage half of delete(_:) — the list is updated first so the row
+    /// disappears on the same frame as the keystroke. Awaitable so tests can
+    /// drive it deterministically; the app goes through delete(_:).
+    func commitDelete(_ item: Item, fromHistory: Bool) async {
+        guard let storage else { return }
+        do {
+            if fromHistory {
+                try await storage.removeFromHistory(id: item.id)
+            } else {
                 try await storage.deleteItem(id: item.id)
-            } catch {
-                logger.error("Failed to delete item: \(String(describing: error), privacy: .public)")
-                reload()
             }
+        } catch {
+            logger.error("Failed to delete item: \(String(describing: error), privacy: .public)")
+            reload()
         }
     }
 

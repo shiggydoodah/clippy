@@ -27,7 +27,8 @@ struct PasteServiceTests {
             lastUsedAt: Date(),
             isFavourite: false,
             favouriteRank: nil,
-            favouriteLabel: nil
+            favouriteLabel: nil,
+            isHiddenFromHistory: false
         )
     }
 
