@@ -294,7 +294,7 @@ extension StorageServiceTests {
         #expect(try await storage.favouriteItems().map(\.textContent) == ["b", "a"])
     }
 
-    @Test func clearHistoryKeepsFavouritesAndTheirBlobs() async throws {
+    @Test func clearHistoryEmptiesHistoryButKeepsFavouritesAndTheirBlobs() async throws {
         let directory = makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let storage = try StorageService(mode: .persistent(directory: directory))
@@ -307,8 +307,12 @@ extension StorageServiceTests {
 
         try await storage.clearHistory()
 
-        let remaining = try await storage.recentItems(limit: 10)
-        #expect(remaining.map(\.id) == [keptImage.id])
+        // Clearing history empties the History list outright — the favourite
+        // leaves it too, and lives on in Favourites.
+        #expect(try await storage.recentItems(limit: 10).isEmpty)
+        let favourites = try await storage.favouriteItems()
+        #expect(favourites.map(\.id) == [keptImage.id])
+        #expect(favourites.first?.isHiddenFromHistory == true)
         // The favourite's blob survives; the doomed image's blob is gone.
         #expect(try await storage.blobData(for: keptImage) == Data("kept image".utf8))
         let blobsRoot = directory.appendingPathComponent("blobs")
@@ -584,6 +588,34 @@ extension StorageServiceTests {
 
         #expect(try await storage.recentItems(limit: 10).isEmpty)
         #expect(try await storage.favouriteItems().map(\.textContent) == ["hidden favourite"])
+    }
+
+    @Test func clearHistoryLeavesAnAlreadyHiddenFavouriteAlone() async throws {
+        let storage = try StorageService(mode: .ephemeral(vaultDirectory: nil))
+        let fav = try await favouritedItem(storage, text: "hidden favourite")
+        _ = try await storage.renameFavourite(id: fav.id, label: "Kept")
+        try await storage.removeFromHistory(id: fav.id)
+
+        try await storage.clearHistory()
+
+        let favourites = try await storage.favouriteItems()
+        #expect(favourites.map(\.displayTitle) == ["Kept"])
+        #expect(favourites.first?.favouriteRank == 1)
+    }
+
+    @Test func clearHistorySurvivesEphemeralRestart() async throws {
+        let vaultDir = makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: vaultDir) }
+
+        let first = try StorageService(mode: .ephemeral(vaultDirectory: vaultDir))
+        _ = try await favouritedItem(first, text: "vaulted")
+        try await first.clearHistory()
+
+        // The vault carries the hidden flag, so the favourite does not come
+        // back into history on the next launch.
+        let second = try StorageService(mode: .ephemeral(vaultDirectory: vaultDir))
+        #expect(try await second.favouriteItems().map(\.textContent) == ["vaulted"])
+        #expect(try await second.recentItems(limit: 10).isEmpty)
     }
 
     @Test func clearFavouritesRemovesOneTakenOutOfHistory() async throws {

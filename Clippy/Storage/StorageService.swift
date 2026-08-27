@@ -306,13 +306,23 @@ actor StorageService {
         }
     }
 
-    /// Danger-zone "Clear history": removes everything except favourites,
-    /// which are exempt from every destructive sweep (CLAUDE.md hard rule).
+    /// Danger-zone "Clear history": empties the History list completely.
+    /// Non-favourites are deleted; favourites only drop out of history and
+    /// stay in Favourites, because favourites are never deleted by a sweep
+    /// (CLAUDE.md hard rule) — only from the Favourites tab.
     func clearHistory() async throws {
-        let victims = try await dbQueue.write { db -> [Item] in
+        let (victims, hidden) = try await dbQueue.write { db -> ([Item], [Item]) in
             let doomed = try Item.filter(Item.Columns.isFavourite == false).fetchAll(db)
             try Item.filter(Item.Columns.isFavourite == false).deleteAll(db)
-            return doomed
+            var kept = try Item
+                .filter(Item.Columns.isFavourite == true)
+                .filter(Item.Columns.isHiddenFromHistory == false)
+                .fetchAll(db)
+            for index in kept.indices {
+                kept[index].isHiddenFromHistory = true
+                try kept[index].update(db)
+            }
+            return (doomed, kept)
         }
         for path in victims.compactMap(\.blobPath) {
             do {
@@ -321,7 +331,10 @@ actor StorageService {
                 logger.error("Blob left behind after clear: \(String(describing: error), privacy: .public)")
             }
         }
-        logger.log("Cleared history: \(victims.count) items removed, favourites kept")
+        for item in hidden {
+            copyToVault(item)
+        }
+        logger.log("Cleared history: \(victims.count) items removed, \(hidden.count) favourites kept out of history")
     }
 
     /// Danger-zone "Clear favourites": the inverse of clearHistory. The only

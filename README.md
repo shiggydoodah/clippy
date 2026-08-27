@@ -42,6 +42,8 @@ Press `⌘F` to keep something for good — favourites are never pruned by your 
 
 A favourite is only ever deleted from the Favourites tab. Pressing `⌘⌫` on one in History takes it out of history and leaves the favourite alone; copying the same thing again brings it back into history. If you then unfavourite it, it's in neither list, so it's gone for good.
 
+Clearing your history from the Danger Zone works the same way: the History list is emptied completely, favourites included, and your favourites stay in Favourites.
+
 ## Privacy
 
 A clipboard manager sees everything you copy, so it's worth being specific.

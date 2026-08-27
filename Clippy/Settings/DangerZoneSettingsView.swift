@@ -19,7 +19,7 @@ struct DangerZoneSettingsView: View {
                         confirmingClearHistory = true
                     }
                 }
-                Text("Removes every non-favourite item. Favourites are kept.")
+                Text("Empties the History list. Favourites stay in Favourites.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -57,7 +57,7 @@ struct DangerZoneSettingsView: View {
                 Task { try? await storage?.clearHistory() }
             }
         } message: {
-            Text("Every non-favourite item will be deleted. This cannot be undone.")
+            Text("Every history item is deleted. Favourites leave the history list too, but stay in the Favourites tab. This cannot be undone.")
         }
         .confirmationDialog(
             "Clear all favourites?",
